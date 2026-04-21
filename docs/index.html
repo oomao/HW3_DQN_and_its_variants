@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HW3 · DQN 及其變體 — Live Demo</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --naive: #94a3b8;
+      --double: #0ea5e9;
+      --dueling: #f59e0b;
+      --lightning: #a78bfa;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 2.5rem 1.25rem 4rem;
+      font-family: "Segoe UI", "Microsoft JhengHei", "PingFang TC", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+    }
+    main { max-width: 1060px; margin: 0 auto; }
+    h1 { font-size: 2rem; margin-top: 0; }
+    h2 { margin-top: 2.4rem; font-size: 1.3rem; color: var(--accent); border-left: 4px solid var(--accent); padding-left: 0.6rem; }
+    h3 { margin-top: 1.6rem; font-size: 1.05rem; color: #e2e8f0; }
+    p { color: var(--muted); }
+    .tagline { font-size: 1.05rem; color: var(--text); margin-bottom: 0.25rem; }
+    .meta { font-size: 0.9rem; color: var(--muted); margin-bottom: 2rem; }
+    .panel {
+      background: var(--panel);
+      border-radius: 12px;
+      padding: 1.25rem;
+      margin: 1rem 0;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+    }
+    .grid2 { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+    .grid3 { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+    @media (min-width: 780px) {
+      .grid2 { grid-template-columns: 1fr 1fr; }
+      .grid3 { grid-template-columns: 1fr 1fr 1fr; }
+    }
+    figure { margin: 0; }
+    figure img { display: block; width: 100%; height: auto; border-radius: 8px; background: white; }
+    figcaption { margin-top: 0.5rem; font-size: 0.9rem; color: var(--muted); text-align: center; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+    th, td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid #334155; vertical-align: top; }
+    th { color: var(--accent); font-weight: 600; }
+    .pill {
+      display: inline-block;
+      padding: 0.2rem 0.6rem;
+      border-radius: 999px;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent);
+      font-size: 0.8rem;
+      margin-right: 0.4rem;
+    }
+    .pill.naive { background: rgba(148, 163, 184, 0.2); color: var(--naive); }
+    .pill.double { background: rgba(14, 165, 233, 0.2); color: var(--double); }
+    .pill.dueling { background: rgba(245, 158, 11, 0.2); color: var(--dueling); }
+    .pill.lightning { background: rgba(167, 139, 250, 0.2); color: var(--lightning); }
+    footer { margin-top: 3rem; font-size: 0.85rem; color: var(--muted); text-align: center; }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+<main>
+  <h1>HW3 — DQN 及其變體</h1>
+  <p class="tagline">以 <em>Deep Reinforcement Learning in Action</em> 第三章 Gridworld 為底，三階段實作並比較 DQN 的演進。</p>
+  <p class="meta">
+    <a href="https://github.com/oomao/HW3_DQN_and_its_variants">GitHub 原始碼</a> ·
+    PyTorch 2.5 + Lightning 2.6 · Windows / CPU 全程可重現
+  </p>
+
+  <h2>HW3-1 · Naive DQN + Experience Replay <span class="pill naive">static 模式</span></h2>
+  <div class="panel">
+    <div class="grid2">
+      <figure>
+        <img src="assets/naive_rewards.png" alt="Naive DQN 學習曲線" />
+        <figcaption>有 / 無 Experience Replay 的回合獎勵比較（100 回合移動平均）。</figcaption>
+      </figure>
+      <figure>
+        <img src="assets/naive_winrate.png" alt="Naive DQN 勝率" />
+        <figcaption>最後 200 回合勝率 ≈ <strong>99%</strong>。</figcaption>
+      </figure>
+    </div>
+    <figure style="margin-top: 1rem;">
+      <img src="assets/rollout_naive_static.gif" alt="Naive DQN rollout" style="max-width: 360px; margin: 0 auto;" />
+      <figcaption>訓練完成的 Q-network 從起點走到 goal（7 步）。</figcaption>
+    </figure>
+  </div>
+
+  <h2>HW3-2 · Double DQN 與 Dueling DQN <span class="pill double">player 模式</span> <span class="pill dueling">player 模式</span></h2>
+  <div class="panel">
+    <div class="grid2">
+      <figure>
+        <img src="assets/variants_rewards.png" alt="三種 variant 學習曲線" />
+        <figcaption>Vanilla / Double / Dueling DQN 的每回合獎勵。</figcaption>
+      </figure>
+      <figure>
+        <img src="assets/variants_winrate.png" alt="三種 variant 勝率" />
+        <figcaption>三者最終皆收斂至勝率 <strong>1.00</strong>。</figcaption>
+      </figure>
+    </div>
+    <figure style="margin-top: 1rem;">
+      <img src="assets/rollout_dueling_player.gif" alt="Dueling DQN rollout" style="max-width: 360px; margin: 0 auto;" />
+      <figcaption>Dueling DQN 於 player 模式下的一回合 greedy rollout。</figcaption>
+    </figure>
+    <table style="margin-top: 1rem;">
+      <tr><th>改進</th><th>重點</th></tr>
+      <tr>
+        <td><strong>Double DQN</strong></td>
+        <td>online 網路挑動作、target 網路估值 ⇒ 緩解 max-operator 帶來的過度估計偏差。</td>
+      </tr>
+      <tr>
+        <td><strong>Dueling DQN</strong></td>
+        <td>拆成 V(s) + A(s, a) 兩個分支 ⇒ 即使各動作 Q 值差很小，也能正確學到「這個狀態本身多好」。</td>
+      </tr>
+    </table>
+  </div>
+
+  <h2>HW3-3 · PyTorch Lightning + Training Tips <span class="pill lightning">random 模式</span></h2>
+  <div class="panel">
+    <div class="grid2">
+      <figure>
+        <img src="assets/lightning_rewards.png" alt="Lightning 學習曲線" />
+        <figcaption>Dueling Double DQN + 穩定性技巧的學習曲線。</figcaption>
+      </figure>
+      <figure>
+        <img src="assets/lightning_winrate.png" alt="Lightning 勝率" />
+        <figcaption>最後 300 回合勝率 ≥ <strong>60%</strong>（random mode 上限本身較低）。</figcaption>
+      </figure>
+    </div>
+    <figure style="margin-top: 1rem;">
+      <img src="assets/rollout_lightning_random.gif" alt="Lightning rollout" style="max-width: 360px; margin: 0 auto;" />
+      <figcaption>隨機關卡下的 greedy rollout。</figcaption>
+    </figure>
+    <h3>加入的訓練技巧</h3>
+    <table>
+      <tr><th>技巧</th><th>設定</th><th>為什麼有用</th></tr>
+      <tr><td>梯度裁剪</td><td><code>gradient_clip_val = 1.0</code></td><td>避免 Q-learning 早期目標震盪造成的梯度爆炸</td></tr>
+      <tr><td>Cosine LR annealing</td><td>1e-3 → 1e-5</td><td>末期細調 Q 值，避免 overshoot</td></tr>
+      <tr><td>Target soft update</td><td>τ = 0.005（每步）</td><td>比 hard sync 更平滑，顯著減少訓練中途崩潰</td></tr>
+      <tr><td>ε 指數衰減</td><td>0.05 + 0.95·exp(−3·t/5000)</td><td>前期快探索、中期迅速收斂、後期仍保留少量探索</td></tr>
+      <tr><td>Warm-up buffer</td><td>500 步才開始更新</td><td>避免過早以偏誤樣本更新網路</td></tr>
+    </table>
+  </div>
+
+  <h2>結論</h2>
+  <div class="panel">
+    <ul>
+      <li>Experience Replay 對 static 的 4×4 Gridworld 影響不大（環境本身太簡單），但會在 player / random mode 顯著加速收斂。</li>
+      <li>player mode 下 Vanilla / Double / Dueling DQN 收斂後差異不大（上限 = 100%），差別在中段穩定性；換到 random mode 才能明顯看出 Dueling 與 Double 的優勢。</li>
+      <li>Lightning 本身不會讓 agent 學得更好，但封裝後的 <em>trainer-level</em> 設定（梯度裁剪、LR schedule、soft update）一次掛上去就明顯穩定 random mode 的訓練。</li>
+    </ul>
+  </div>
+
+  <footer>為 DRL HW3 所作 · 2026-04 · PyTorch + Lightning · MIT (vendored Gridworld)</footer>
+</main>
+</body>
+</html>

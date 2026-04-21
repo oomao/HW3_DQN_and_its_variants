@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+.env
+.ipynb_checkpoints/
+.DS_Store
+.claude/
+_upstream/
+lightning_logs/
