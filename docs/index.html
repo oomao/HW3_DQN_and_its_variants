@@ -15,6 +15,7 @@
       --double: #0ea5e9;
       --dueling: #f59e0b;
       --lightning: #a78bfa;
+      --rainbow: #f43f5e;
     }
     * { box-sizing: border-box; }
     body {
@@ -64,6 +65,11 @@
     .pill.double { background: rgba(14, 165, 233, 0.2); color: var(--double); }
     .pill.dueling { background: rgba(245, 158, 11, 0.2); color: var(--dueling); }
     .pill.lightning { background: rgba(167, 139, 250, 0.2); color: var(--lightning); }
+    .pill.rainbow { background: rgba(244, 63, 94, 0.2); color: var(--rainbow); }
+    .pill.bonus { background: rgba(244, 63, 94, 0.18); color: var(--rainbow); }
+    .pill.ablation { background: rgba(148, 163, 184, 0.18); color: var(--naive); }
+    .best-row { background: rgba(244, 63, 94, 0.08); }
+    .best-row td { color: var(--text); font-weight: 600; }
     footer { margin-top: 3rem; font-size: 0.85rem; color: var(--muted); text-align: center; }
     a { color: var(--accent); }
   </style>
@@ -71,7 +77,7 @@
 <body>
 <main>
   <h1>HW3 — DQN 及其變體</h1>
-  <p class="tagline">以 <em>Deep Reinforcement Learning in Action</em> 第三章 Gridworld 為底，三階段實作並比較 DQN 的演進。</p>
+  <p class="tagline">以 <em>Deep Reinforcement Learning in Action</em> 第三章 Gridworld 為底，三階段主題 + 加分題 Rainbow DQN 完整實作並比較 DQN 的演進。</p>
   <p class="meta">
     <a href="https://github.com/oomao/HW3_DQN_and_its_variants">GitHub 原始碼</a> ·
     PyTorch 2.5 + Lightning 2.6 · Windows / CPU 全程可重現
@@ -151,12 +157,85 @@
     </table>
   </div>
 
+  <h2>HW3-4 · Rainbow DQN <span class="pill bonus">加分題</span> <span class="pill rainbow">random 模式</span></h2>
+  <div class="panel">
+    <p>把 Rainbow（Hessel et al., 2018）六個改進全部實作出來，並用嚴謹 ablation 找出在這個 toy env 上真的有效的子集。</p>
+
+    <h3>六個改進都實作了</h3>
+    <table>
+      <tr><th>#</th><th>改進</th><th>本專案實作位置</th></tr>
+      <tr><td>1</td><td>Double DQN</td><td>HW3-2/3 沿用</td></tr>
+      <tr><td>2</td><td>Dueling DQN</td><td>HW3-2/3 沿用</td></tr>
+      <tr><td>3</td><td>Prioritized Experience Replay</td><td><code>prioritized_replay.py</code>（sum-tree, α=0.6, β: 0.4→1.0）</td></tr>
+      <tr><td>4</td><td>Multi-step (n-step) return</td><td><code>nstep.py</code>（n=3，含 episode-end flush）</td></tr>
+      <tr><td>5</td><td>Distributional RL (C51)</td><td><code>models.py::CategoricalRainbowDQN</code> + <code>project_distribution</code></td></tr>
+      <tr><td>6</td><td>Noisy Networks</td><td><code>models.py::NoisyLinear</code></td></tr>
+    </table>
+
+    <h3>Ablation 主結果（25k env steps、seed=0、其餘超參一致）</h3>
+    <table>
+      <tr><th>配置</th><th>Rainbow 元件</th><th style="text-align:right">episodes / 25k</th><th style="text-align:right">last-300 win rate</th></tr>
+      <tr><td>HW3-3 baseline · Dueling Double DQN</td><td>2/6</td><td style="text-align:right">1074</td><td style="text-align:right">0.643</td></tr>
+      <tr class="best-row"><td>Rainbow 4/6（+ PER + n=3）✨ best</td><td>4/6</td><td style="text-align:right"><strong>1224 (+14%)</strong></td><td style="text-align:right"><strong>0.653</strong></td></tr>
+      <tr><td>Rainbow 5/6（+ C51）</td><td>5/6</td><td style="text-align:right">950</td><td style="text-align:right">0.313</td></tr>
+      <tr><td>Rainbow 5/6（+ NoisyNet）</td><td>5/6</td><td style="text-align:right">812</td><td style="text-align:right">0.367</td></tr>
+      <tr><td>Rainbow 6/6（full）</td><td>6/6</td><td style="text-align:right">706</td><td style="text-align:right">0.133</td></tr>
+    </table>
+
+    <div class="grid2" style="margin-top: 1rem;">
+      <figure>
+        <img src="assets/rainbow_ablation_rewards.png" alt="Rainbow ablation 學習曲線" />
+        <figcaption>五種配置 25k steps 內的回合獎勵。</figcaption>
+      </figure>
+      <figure>
+        <img src="assets/rainbow_ablation_winrate.png" alt="Rainbow ablation 勝率" />
+        <figcaption>勝率對照（滑動窗 120）。</figcaption>
+      </figure>
+    </div>
+
+    <p style="margin-top: 1rem;">
+      <strong>結論：</strong>在 4×4 toy random gridworld 上，<em>只有 PER + n-step（4/6 配置）真正有效</em>；
+      加上 C51 或 NoisyNet 反而傷害效能，全 6/6 最差。這呼應原始 Rainbow paper 在較簡單環境上的觀察 —
+      distributional 與 NoisyNet 的好處主要來自高維、reward 多模態的環境。
+    </p>
+
+    <h3>最佳配置（4/6）的展示</h3>
+    <div class="grid2">
+      <figure>
+        <img src="assets/rainbow_rewards.png" alt="Rainbow 4/6 學習曲線" />
+        <figcaption>4/6 Rainbow 的單獨學習曲線。</figcaption>
+      </figure>
+      <figure>
+        <img src="assets/rainbow_winrate.png" alt="Rainbow 4/6 勝率" />
+        <figcaption>最後 300 回合勝率 <strong>0.653</strong>。</figcaption>
+      </figure>
+    </div>
+    <figure style="margin-top: 1rem;">
+      <img src="assets/rollout_rainbow_random.gif" alt="Rainbow 4/6 rollout" style="max-width: 360px; margin: 0 auto;" />
+      <figcaption>4/6 配置在 random 模式下 <strong>7 步抵達 goal</strong>（seed=99）。</figcaption>
+    </figure>
+
+    <h3>為什麼 C51 / NoisyNet 在這個 env 變差？</h3>
+    <table>
+      <tr><th>改進</th><th>失敗原因（toy env 特定）</th></tr>
+      <tr>
+        <td><strong>C51</strong></td>
+        <td>reward ∈ {−1, 0, +1}、γ=0.9 → return 只在 [−1, 1]。51 個 atom 中只有 5–10 個有非零機率，其他 40+ 個增加 gradient noise；cross-entropy 的梯度尺度與 lr schedule 不太搭。</td>
+      </tr>
+      <tr>
+        <td><strong>NoisyNet</strong></td>
+        <td>狀態空間太小 → 共享權重 noise 高度相關，batch 內所有狀態同方向偏移；σ 是 learnable 可能不收斂；PER 放大誤判 transition 的權重。</td>
+      </tr>
+    </table>
+  </div>
+
   <h2>結論</h2>
   <div class="panel">
     <ul>
       <li>Experience Replay 對 static 的 4×4 Gridworld 影響不大（環境本身太簡單），但會在 player / random mode 顯著加速收斂。</li>
       <li>player mode 下 Vanilla / Double / Dueling DQN 收斂後差異不大（上限 = 100%），差別在中段穩定性；換到 random mode 才能明顯看出 Dueling 與 Double 的優勢。</li>
       <li>Lightning 本身不會讓 agent 學得更好，但封裝後的 <em>trainer-level</em> 設定（梯度裁剪、LR schedule、soft update）一次掛上去就明顯穩定 random mode 的訓練。</li>
+      <li><strong>HW3-4 ablation 證實「全部都疊」不一定最好</strong>：在 toy env 上，PER + n-step 已足夠；C51 與 NoisyNet 在 reward 退化、state 空間小的條件下反而傷害效能。完整 Rainbow 程式碼仍保留在 <code>src/hw3/</code>，可用 <code>--noisy</code> / <code>--no-distributional</code> flag 任意組合。</li>
     </ul>
   </div>
 
