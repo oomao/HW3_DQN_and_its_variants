@@ -72,6 +72,31 @@
     .best-row td { color: var(--text); font-weight: 600; }
     footer { margin-top: 3rem; font-size: 0.85rem; color: var(--muted); text-align: center; }
     a { color: var(--accent); }
+
+    /* Interactive demo */
+    .demo-controls { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.8rem 0; align-items: center; }
+    .demo-controls label { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--muted); font-size: 0.9rem; }
+    .demo-controls select,
+    .demo-controls button { padding: 0.4rem 0.8rem; border-radius: 6px; background: #334155; color: var(--text); border: 1px solid #475569; cursor: pointer; font: inherit; }
+    .demo-controls button:hover { background: #475569; }
+    .demo-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .demo-palette { display: inline-flex; gap: 0.3rem; align-items: center; }
+    .demo-palette .palette-btn { padding: 0.3rem 0.6rem; }
+    .demo-palette .palette-btn.active { outline: 2px solid var(--accent); background: #475569; }
+    .demo-board { display: grid; grid-template-columns: repeat(4, 64px); grid-template-rows: repeat(4, 64px); gap: 3px; background: #475569; padding: 4px; border-radius: 8px; width: max-content; margin: 1rem auto; }
+    .demo-cell { background: #f8fafc; border-radius: 4px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.15s; position: relative; }
+    .demo-cell:hover { background: #e2e8f0; }
+    .demo-token { display: inline-flex; align-items: center; justify-content: center; width: 78%; height: 78%; border-radius: 50%; color: white; font-weight: bold; font-size: 1.4rem; text-shadow: 0 1px 2px rgba(0,0,0,0.3); }
+    .demo-token.is-player { animation: demo-pulse 1.1s infinite ease-in-out; box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.5); }
+    .demo-token.is-wall { border-radius: 4px; }
+    @keyframes demo-pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+    .demo-status { text-align: center; color: var(--text); margin-top: 0.6rem; font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 0.95rem; min-height: 1.4rem; }
+    .demo-legend { display: flex; flex-wrap: wrap; gap: 1rem; justify-content: center; color: var(--muted); font-size: 0.85rem; margin-top: 0.4rem; }
+    .demo-legend span::before { content: ""; display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 0.3rem; vertical-align: middle; }
+    .demo-legend .lg-p::before { background: #f59e0b; }
+    .demo-legend .lg-g::before { background: #22c55e; }
+    .demo-legend .lg-x::before { background: #ef4444; }
+    .demo-legend .lg-w::before { background: #475569; border-radius: 2px; }
   </style>
 </head>
 <body>
@@ -229,6 +254,37 @@
     </table>
   </div>
 
+  <h2>互動 Demo · 讓 agent 解你的關卡</h2>
+  <div class="panel">
+    <p>把訓練好的 Dueling DQN（HW3-3 baseline 與 HW3-4 4/6 Rainbow 最佳配置）透過 <code>torch.onnx.export</code> 匯成 ONNX，瀏覽器以 <a href="https://onnxruntime.ai/docs/tutorials/web/" target="_blank" rel="noopener">onnxruntime-web</a> 直接跑 inference（純前端、無 backend）。挑模型、擺位置、按 Run 看 agent 怎麼走。</p>
+    <div class="demo-controls">
+      <label>模型：
+        <select id="demo-model">
+          <option value="assets/lightning_random.onnx">HW3-3 · Dueling Double DQN（2/6 baseline）</option>
+          <option value="assets/rainbow_lite_random.onnx">HW3-4 · Rainbow 4/6 (best ablation)</option>
+        </select>
+      </label>
+      <span class="demo-palette">擺：
+        <button class="palette-btn" data-piece="Player">🟠 P</button>
+        <button class="palette-btn" data-piece="Goal">🟢 +</button>
+        <button class="palette-btn" data-piece="Pit">🔴 ×</button>
+        <button class="palette-btn" data-piece="Wall">⬛ W</button>
+      </span>
+      <button id="demo-random">🎲 隨機關卡</button>
+      <button id="demo-run">▶ Run agent</button>
+      <button id="demo-reset">↺ 重置</button>
+    </div>
+    <div class="demo-board" id="demo-board"></div>
+    <div class="demo-legend">
+      <span class="lg-p">Player（要走到 Goal）</span>
+      <span class="lg-g">Goal（+1）</span>
+      <span class="lg-x">Pit（−1，遊戲結束）</span>
+      <span class="lg-w">Wall（擋住 Player）</span>
+    </div>
+    <div class="demo-status" id="demo-status">載入模型中…</div>
+    <p style="margin-top: 1rem; color: var(--muted); font-size: 0.88rem;"><em>注意：相同初始局面 agent 永遠走相同路徑（greedy argmax）。如果 agent 走到一半開始繞圈，多半是這個局面屬於 random mode 訓練時沒解過的 unwinnable 子集——可以重新生成或自己微調 Wall 位置。</em></p>
+  </div>
+
   <h2>結論</h2>
   <div class="panel">
     <ul>
@@ -241,5 +297,216 @@
 
   <footer>為 DRL HW3 所作 · 2026-04 · PyTorch + Lightning · MIT (vendored Gridworld)</footer>
 </main>
+
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.0/dist/ort.min.js"></script>
+<script>
+(() => {
+  const SIZE = 4;
+  const MAX_STEPS = 50;
+  const PIECES = ['Player', 'Goal', 'Pit', 'Wall'];
+  const COLORS = { Player: '#f59e0b', Goal: '#22c55e', Pit: '#ef4444', Wall: '#475569' };
+  const LABELS = { Player: 'P', Goal: '+', Pit: '×', Wall: 'W' };
+  const ACTIONS = [
+    { dr: -1, dc:  0, name: '↑' },
+    { dr:  1, dc:  0, name: '↓' },
+    { dr:  0, dc: -1, name: '←' },
+    { dr:  0, dc:  1, name: '→' },
+  ];
+
+  if (typeof ort !== 'undefined') {
+    ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.0/dist/';
+    ort.env.wasm.numThreads = 1;
+  }
+
+  // Default: a winnable layout verified solvable in 2 steps by the random-trained models.
+  const DEFAULT_POS = { Player: [0, 2], Goal: [2, 2], Pit: [3, 3], Wall: [1, 1] };
+
+  const state = {
+    positions: JSON.parse(JSON.stringify(DEFAULT_POS)),
+    selectedPiece: 'Player',
+    session: null,
+    currentModelPath: '',
+    running: false,
+  };
+
+  const $board = document.getElementById('demo-board');
+  const $status = document.getElementById('demo-status');
+  const $run = document.getElementById('demo-run');
+  const $reset = document.getElementById('demo-reset');
+  const $random = document.getElementById('demo-random');
+  const $model = document.getElementById('demo-model');
+
+  const setStatus = (msg) => { $status.textContent = msg; };
+
+  function selectPiece(p) {
+    state.selectedPiece = p;
+    document.querySelectorAll('.palette-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.piece === p);
+    });
+  }
+
+  function renderBoard() {
+    $board.innerHTML = '';
+    for (let r = 0; r < SIZE; r++) {
+      for (let c = 0; c < SIZE; c++) {
+        const cell = document.createElement('div');
+        cell.className = 'demo-cell';
+        cell.dataset.r = r;
+        cell.dataset.c = c;
+        cell.addEventListener('click', () => onCellClick(r, c));
+        for (const p of PIECES) {
+          if (state.positions[p][0] === r && state.positions[p][1] === c) {
+            const tok = document.createElement('span');
+            tok.className = 'demo-token';
+            tok.style.background = COLORS[p];
+            tok.textContent = LABELS[p];
+            if (p === 'Player') tok.classList.add('is-player');
+            if (p === 'Wall') tok.classList.add('is-wall');
+            cell.appendChild(tok);
+          }
+        }
+        $board.appendChild(cell);
+      }
+    }
+  }
+
+  function onCellClick(r, c) {
+    if (state.running) return;
+    for (const p of PIECES) {
+      if (p !== state.selectedPiece && state.positions[p][0] === r && state.positions[p][1] === c) {
+        setStatus(`(${r},${c}) 已被 ${p} 佔了 — 先選那個 piece 再移走`);
+        return;
+      }
+    }
+    state.positions[state.selectedPiece] = [r, c];
+    renderBoard();
+    setStatus(`已擺 ${state.selectedPiece} 到 (${r},${c})`);
+  }
+
+  function encodeState() {
+    // Layer order: Player, Goal, Pit, Wall — flat row-major (layer*16 + r*4 + c).
+    const buf = new Float32Array(64);
+    for (let i = 0; i < PIECES.length; i++) {
+      const [r, c] = state.positions[PIECES[i]];
+      buf[i * 16 + r * SIZE + c] = 1.0;
+    }
+    return buf;
+  }
+
+  async function loadModel(path) {
+    if (path === state.currentModelPath && state.session) return state.session;
+    setStatus(`載入模型 ${path.split('/').pop()} …`);
+    try {
+      state.session = await ort.InferenceSession.create(path, {
+        executionProviders: ['wasm'],
+      });
+      state.currentModelPath = path;
+      setStatus('就緒 — 點 piece 再點格子，或隨機，然後 Run agent');
+    } catch (e) {
+      setStatus(`模型載入失敗：${e.message}`);
+      throw e;
+    }
+    return state.session;
+  }
+
+  async function inferAction() {
+    const buf = encodeState();
+    const tensor = new ort.Tensor('float32', buf, [1, 64]);
+    const out = await state.session.run({ state: tensor });
+    const q = out.q.data;
+    let best = 0;
+    for (let i = 1; i < 4; i++) if (q[i] > q[best]) best = i;
+    return { action: best, q: Array.from(q) };
+  }
+
+  function tryMove(action) {
+    const { dr, dc } = ACTIONS[action];
+    const [pr, pc] = state.positions.Player;
+    const nr = pr + dr;
+    const nc = pc + dc;
+    if (nr < 0 || nr >= SIZE || nc < 0 || nc >= SIZE) return false;
+    const [wr, wc] = state.positions.Wall;
+    if (nr === wr && nc === wc) return false;
+    state.positions.Player = [nr, nc];
+    return true;
+  }
+
+  function terminal() {
+    const [pr, pc] = state.positions.Player;
+    if (pr === state.positions.Goal[0] && pc === state.positions.Goal[1]) return 'win';
+    if (pr === state.positions.Pit[0] && pc === state.positions.Pit[1]) return 'lose';
+    return null;
+  }
+
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+  async function runAgent() {
+    if (state.running) return;
+    if (!state.session) await loadModel(state.currentModelPath || $model.value);
+    state.running = true;
+    $run.disabled = true;
+    $reset.disabled = true;
+    $random.disabled = true;
+    setStatus('Agent 開動 …');
+    for (let s = 1; s <= MAX_STEPS; s++) {
+      const { action, q } = await inferAction();
+      const moved = tryMove(action);
+      renderBoard();
+      const term = terminal();
+      const qStr = q.map(v => v.toFixed(2)).join(', ');
+      const note = moved ? '' : ' (擋住，沒動)';
+      setStatus(`step ${s} · 動作=${ACTIONS[action].name}${note} · Q=[${qStr}]`);
+      if (term === 'win') { setStatus(`✓ Win — ${s} 步`); break; }
+      if (term === 'lose') { setStatus(`✗ Lose — 踩到 pit（${s} 步）`); break; }
+      if (s === MAX_STEPS) { setStatus(`⏱ 達 ${MAX_STEPS} 步上限（極可能是 unwinnable 局面）`); break; }
+      await sleep(380);
+    }
+    state.running = false;
+    $run.disabled = false;
+    $reset.disabled = false;
+    $random.disabled = false;
+  }
+
+  function resetDefault() {
+    state.positions = JSON.parse(JSON.stringify(DEFAULT_POS));
+    renderBoard();
+    setStatus('已重置 — 預設局面 (2 步可贏)');
+  }
+
+  function randomBoard() {
+    while (true) {
+      const used = new Set();
+      const pos = {};
+      let ok = true;
+      for (const p of PIECES) {
+        const r = Math.floor(Math.random() * SIZE);
+        const c = Math.floor(Math.random() * SIZE);
+        const key = `${r},${c}`;
+        if (used.has(key)) { ok = false; break; }
+        used.add(key);
+        pos[p] = [r, c];
+      }
+      if (ok) {
+        state.positions = pos;
+        break;
+      }
+    }
+    renderBoard();
+    setStatus('🎲 隨機關卡已生成 — 按 Run');
+  }
+
+  document.querySelectorAll('.palette-btn').forEach(b => {
+    b.addEventListener('click', () => selectPiece(b.dataset.piece));
+  });
+  $random.addEventListener('click', randomBoard);
+  $reset.addEventListener('click', resetDefault);
+  $run.addEventListener('click', runAgent);
+  $model.addEventListener('change', (e) => loadModel(e.target.value));
+
+  selectPiece('Player');
+  renderBoard();
+  loadModel($model.value);
+})();
+</script>
 </body>
 </html>
