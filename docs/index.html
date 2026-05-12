@@ -390,6 +390,9 @@
       const [r, c] = state.positions[PIECES[i]];
       buf[i * 16 + r * SIZE + c] = 1.0;
     }
+    // Match training-time symmetry-breaking noise (env.py: + rand / 100).
+    // Without this, near-tie Q values can lock the agent into oscillation forever.
+    for (let i = 0; i < 64; i++) buf[i] += Math.random() / 100.0;
     return buf;
   }
 
@@ -448,6 +451,7 @@
     $reset.disabled = true;
     $random.disabled = true;
     setStatus('Agent 開動 …');
+    const recent = [];  // ring buffer of last 6 Player positions to detect loops
     for (let s = 1; s <= MAX_STEPS; s++) {
       const { action, q } = await inferAction();
       const moved = tryMove(action);
@@ -458,6 +462,15 @@
       setStatus(`step ${s} · 動作=${ACTIONS[action].name}${note} · Q=[${qStr}]`);
       if (term === 'win') { setStatus(`✓ Win — ${s} 步`); break; }
       if (term === 'lose') { setStatus(`✗ Lose — 踩到 pit（${s} 步）`); break; }
+      recent.push(state.positions.Player.join(','));
+      if (recent.length > 6) recent.shift();
+      if (recent.length >= 4) {
+        const unique = new Set(recent).size;
+        if (unique <= 2) {
+          setStatus(`⛔ Agent 在 ${unique} 個格子間繞圈（${s} 步） — 局面可能 unwinnable，換 piece 位置再試`);
+          break;
+        }
+      }
       if (s === MAX_STEPS) { setStatus(`⏱ 達 ${MAX_STEPS} 步上限（極可能是 unwinnable 局面）`); break; }
       await sleep(380);
     }
